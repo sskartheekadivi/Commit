@@ -1,0 +1,58 @@
+# IntelliJ-based IDEs
+.idea/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+.DS_Store
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Build artifacts
+.dart_tool/
+.packages
+build/
+*.aab
+*.apk
+*.apks
+*.ipa
+
+# Dependency-related
+pubspec.lock # Generally committed in Flutter projects, but often ignored in other Dart projects. If this project explicitly tracks dependencies, it might be committed. For now, ignoring.
+
+# VS Code
+.vscode/
+
+# Android specific
+/android/build/
+/android/.gradle/
+/android/captures/
+/android/app/build/
+/android/app/.cxx/
+/android/app/src/main/assets/flutter_assets/
+/android/gradlew
+/android/gradlew.bat
+/android/local.properties
+
+# Flutter/Dart specific
+/ios/.symlinks/
+/ios/Flutter/.last_build_id
+/ios/Flutter/Generated.xcconfig
+/ios/Runner/*.xcodeproj/project.xcworkspace/
+/ios/Runner/*.xcodeproj/xcuserdata/
+/ios/Runner.xcworkspace/xcuserdata/
+
+# Drift generated files
+*.g.dart
+
+# Private files
+secrets.yaml
+.env
+
+# Crashy files
+*.stackdump
+*.elf
+*.dSYM/

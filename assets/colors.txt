@@ -1,0 +1,7 @@
+#ef4444	#f97316	#f59e0b	#eab308	#84cc16	#22c55e	#14b8a6	#06b6d4	#3b82f6	#6366f1	#8b5cf6	#a855f7	#ec4899	#6b7280
+#f56462	#fb8b3d	#f5ae3f	#ecc042	#98d445	#50cf78	#49c3b2	#46c2da	#5695f9	#737ef5	#9a77f9	#b571f9	#f168ab	#808693
+#f9807d	#fca25c	#f6be5f	#eecc62	#abdc64	#70d990	#69cebe	#67cde0	#70a7fb	#8694f9	#a98ffb	#c18bfb	#f584bc	#969ba6
+#fd9a97	#fcb67a	#f6cc7a	#f1d87c	#bce47f	#8ce2a7	#84daca	#83d9e7	#8ab9fc	#9aaafc	#baa6fd	#cea3fd	#f89ecc	#adb1b9
+#ffb2b1	#fcca97	#f8da94	#f5e495	#cdec99	#a7ebbd	#9de5d7	#9ee4ee	#a4c9fe	#b0bffe	#cabcfe	#dbbafe	#fab7da	#c4c7cd
+#ffcaca	#fddcb6	#fae7ae	#f9eeac	#ddf4b2	#c2f4d2	#b5f0e4	#b7eff6	#bfdafe	#c8d3ff	#dbd3fe	#e7d1ff	#fbcfe7	#dbdde1
+#fee2e2	#ffedd5	#fef3c7	#fef9c3	#ecfccb	#dcfce7	#ccfbf1	#cffafe	#dbeafe	#e0e7ff	#ede9fe	#f3e8ff	#fce7f3	#f3f4f6

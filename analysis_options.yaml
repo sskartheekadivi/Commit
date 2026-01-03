@@ -1,0 +1,44 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  errors:
+    # treat missing required parameters as an error
+    missing_required_param: error
+    # treat missing returns as an error
+    missing_return: error
+    # allow having TODOs in the code
+    todo: ignore
+
+linter:
+  rules:
+    # prefer using final for variables that are not reassigned
+    prefer_final_locals: true
+    # prefer using const for constructors
+    prefer_const_constructors: true
+    # prefer using const for declarations
+    prefer_const_declarations: true
+    # avoid using print statements
+    avoid_print: true
+    # require types for parameters
+    always_specify_types: true
+    # avoid empty else statements
+    avoid_empty_else: true
+    # avoid relative imports for files in lib/
+    avoid_relative_lib_imports: true
+    # prefer using isNotEmpty
+    prefer_is_not_empty: true
+    # await only futures
+    await_only_futures: true
+    # add a semicolon at the end of every statement
+    always_use_package_imports: true
+    # curly braces for all control structures
+    curly_braces_in_flow_control_structures: true
+    # no async without await
+    unnecessary_await_in_return: true
+    # no useless containers
+    unnecessary_parenthesis: true
+    # use trailing commas
+    prefer_trailing_comma: true
