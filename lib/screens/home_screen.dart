@@ -183,9 +183,12 @@ class StatusCell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final logAsync = ref.watch(logForHabitOnDateProvider(habit.id, date));
     final habitType = HabitType.fromString(habit.type);
+    
+    final today = DateTime.now();
+    final isFutureDate = date.isAfter(today.copyWith(hour: 23, minute: 59, second: 59));
 
     return GestureDetector(
-      onTap: () async {
+      onTap: isFutureDate ? null : () async { // Disable onTap for future dates
         try {
           final repo = ref.read(habitRepositoryProvider);
           if (habitType == HabitType.boolean) {
@@ -202,55 +205,58 @@ class StatusCell extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Could not update log.')));
         }
       },
-      child: Container(
-        color: Colors.transparent,
-        alignment: Alignment.center,
-        child: logAsync.when(
-          data: (log) {
-            final theme = Theme.of(context);
-            if (habitType == HabitType.measurable) {
-              if (log == null) return Text('—', style: TextStyle(fontSize: 12, color: Colors.grey.shade600));
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(log.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  if (habit.unit != null) Text(habit.unit!, style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                ],
-              );
-            }
-            Color? fillColor;
-            if (log != null) {
-              if (habitType == HabitType.boolean || habitType == HabitType.description) {
-                fillColor = Color(habit.color ?? Colors.green.value);
-              } else if (habitType == HabitType.enumType) {
-                final enumOptions = ref.watch(enumOptionsProvider(habit.id)).valueOrNull ?? [];
-                final option = enumOptions.firstWhereOrNull((opt) => opt.value == log.value);
-                fillColor = option != null ? Color(option.color) : theme.colorScheme.primary;
+      child: Opacity( // Apply opacity for visual disabling
+        opacity: isFutureDate ? 0.4 : 1.0,
+        child: Container(
+          color: Colors.transparent,
+          alignment: Alignment.center,
+          child: logAsync.when(
+            data: (log) {
+              final theme = Theme.of(context);
+              if (habitType == HabitType.measurable) {
+                if (log == null) return Text('—', style: TextStyle(fontSize: 12, color: Colors.grey.shade600));
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(log.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    if (habit.unit != null) Text(habit.unit!, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                  ],
+                );
               }
-            }
-            return Container(
-              height: size * 0.6,
-              width: size * 0.6,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: fillColor,
-                border: Border.all(color: fillColor ?? Colors.grey.shade700, width: 1.5),
-              ),
-            );
-          },
-          loading: () => SizedBox(height: size * 0.5, width: size * 0.5, child: const CircularProgressIndicator(strokeWidth: 1.5)),
-          error: (e, s) => Icon(Icons.error_outline, color: Colors.yellow, size: size * 0.6),
-        ),
-      ),
-    );
-  }
-}
-
-extension IterableExt<T> on Iterable<T> {
-  T? firstWhereOrNull(bool Function(T) test) {
-    for (var element in this) {
-      if (test(element)) return element;
-    }
-    return null;
-  }
-}
+              Color? fillColor;
+              if (log != null) {
+                if (habitType == HabitType.boolean || habitType == HabitType.description) {
+                  fillColor = Color(habit.color ?? Colors.green.value);
+                } else if (habitType == HabitType.enumType) {
+                  final enumOptions = ref.watch(enumOptionsProvider(habit.id)).valueOrNull ?? [];
+                  final option = enumOptions.firstWhereOrNull((opt) => opt.value == log.value);
+                  fillColor = option != null ? Color(option.color) : theme.colorScheme.primary;
+                }
+              }
+              return Container(
+                height: size * 0.6,
+                width: size * 0.6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: fillColor,
+                                    border: Border.all(color: fillColor ?? Colors.grey.shade700, width: 1.5),
+                                  ),
+                                );
+                              },
+                              loading: () => SizedBox(height: size * 0.5, width: size * 0.5, child: const CircularProgressIndicator(strokeWidth: 1.5)),
+                              error: (e, s) => Icon(Icons.error_outline, color: Colors.yellow, size: size * 0.6),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                  
+                  extension IterableExt<T> on Iterable<T> {
+                    T? firstWhereOrNull(bool Function(T) test) {
+                      for (var element in this) {
+                        if (test(element)) return element;
+                      }
+                      return null;
+                    }
+                  }

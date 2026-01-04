@@ -193,15 +193,15 @@ class ActivityHeatmap extends ConsumerWidget {
 
     if (habitType == HabitType.enumType) {
       return enumOptionsAsync.when(
-        data: (options) => _buildHeatmap(logsAsync, habitType, options),
+        data: (options) => _buildHeatmap(context, logsAsync, habitType, options),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, s) => Text('Error: $e'),
       );
     }
-    return _buildHeatmap(logsAsync, habitType, []);
+    return _buildHeatmap(context, logsAsync, habitType, []);
   }
 
-  Widget _buildHeatmap(AsyncValue<List<Log>> logsAsync, HabitType habitType, List<EnumOption> enumOptions) {
+  Widget _buildHeatmap(BuildContext context, AsyncValue<List<Log>> logsAsync, HabitType habitType, List<EnumOption> enumOptions) {
     return logsAsync.when(
       data: (logs) {
         final logMap = {for (var log in logs) stripTime(log.date): log};
@@ -213,7 +213,27 @@ class ActivityHeatmap extends ConsumerWidget {
           colorMode: ColorMode.color,
           colorsets: colorsets,
           showColorTip: false,
-          onClick: isEditMode ? (date) => onDateClick(date, logMap[date]) : null,
+          onClick: isEditMode
+              ? (date) {
+                  if (date.isAfter(DateTime.now())) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Cannot Log for Future Date'),
+                        content: const Text('You cannot log an activity for a date that has not yet occurred.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    onDateClick(date, logMap[date]);
+                  }
+                }
+              : null,
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),

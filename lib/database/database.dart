@@ -16,6 +16,9 @@ class Habits extends Table {
   TextColumn get type => text()();
   IntColumn get color => integer().nullable()();
   TextColumn get notificationText => text().nullable()();
+  IntColumn get reminderHour => integer().nullable()();
+  IntColumn get reminderMinute => integer().nullable()();
+  TextColumn get reminderDays => text().nullable()();
   RealColumn get targetValue => real().nullable()();
   TextColumn get unit => text().nullable()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
@@ -48,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,6 +66,11 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) await m.addColumn(habits, habits.notificationText);
           if (from < 6) {
             await m.addColumn(habits, habits.orderIndex);
+          }
+          if (from < 7) {
+            await m.addColumn(habits, habits.reminderHour);
+            await m.addColumn(habits, habits.reminderMinute);
+            await m.addColumn(habits, habits.reminderDays);
           }
         },
       );

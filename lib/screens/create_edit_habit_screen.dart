@@ -96,6 +96,11 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
   final List<_EnumOptionState> _enumOptions = [];
   bool _isLoading = false;
 
+  // Notification state
+  bool _remindMe = false;
+  TimeOfDay? _selectedTime;
+  final Set<int> _selectedDays = {}; // 1-7 for Mon-Sun
+
   bool get _isEditing => widget.habit != null;
   bool get _isTypePreselected => widget.preselectedType != null;
 
@@ -111,8 +116,17 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
     _unitController = TextEditingController(text: widget.habit?.unit);
     _notificationTextController = TextEditingController(text: widget.habit?.notificationText);
 
-    if (_isEditing && _selectedType == HabitType.enumType) {
-      _loadExistingEnumOptions();
+    if (_isEditing) {
+      if (widget.habit!.reminderHour != null && widget.habit!.reminderMinute != null) {
+        _remindMe = true;
+        _selectedTime = TimeOfDay(hour: widget.habit!.reminderHour!, minute: widget.habit!.reminderMinute!);
+      }
+      if (widget.habit!.reminderDays != null && widget.habit!.reminderDays!.isNotEmpty) {
+        _selectedDays.addAll(widget.habit!.reminderDays!.split(',').map((e) => int.parse(e)));
+      }
+      if (_selectedType == HabitType.enumType) {
+        _loadExistingEnumOptions();
+      }
     }
     _loadPaletteColors();
   }
@@ -294,6 +308,7 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
+                    _buildReminderSection(),
                     if (_selectedType == HabitType.measurable) _buildMeasurableFields(),
                     if (_selectedType == HabitType.enumType) _buildEnumFields(),
                     const SizedBox(height: 32),
@@ -302,6 +317,70 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildReminderSection() {
+    return Column(
+      children: [
+        SwitchListTile(
+          title: const Text('Remind me'),
+          value: _remindMe,
+          onChanged: (bool value) async {
+            if (value) {
+              // Request permissions when the switch is turned on
+              await ref.read(notificationServiceProvider).requestPermissions();
+            }
+            setState(() {
+              _remindMe = value;
+              if (!value) {
+                _selectedTime = null;
+                _selectedDays.clear();
+              }
+            });
+          },
+        ),
+        if (_remindMe) ...[
+          ListTile(
+            title: const Text('Reminder Time'),
+            subtitle: Text(_selectedTime?.format(context) ?? 'Select Time'),
+            trailing: const Icon(Icons.access_time),
+            onTap: () async {
+              final TimeOfDay? picked = await showTimePicker(
+                context: context,
+                initialTime: _selectedTime ?? TimeOfDay.now(),
+              );
+              if (picked != null) {
+                setState(() => _selectedTime = picked);
+              }
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Wrap(
+              spacing: 8.0,
+              children: List.generate(7, (index) {
+                final day = index + 1; // 1 = Monday, 7 = Sunday
+                final dayInitial = ['M', 'T', 'W', 'T', 'F', 'S', 'S'][index];
+                final isSelected = _selectedDays.contains(day);
+                return ChoiceChip(
+                  label: Text(dayInitial),
+                  selected: isSelected,
+                  onSelected: (bool selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedDays.add(day);
+                      } else {
+                        _selectedDays.remove(day);
+                      }
+                    });
+                  },
+                );
+              }),
+            ),
+          )
+        ],
+      ],
     );
   }
 
@@ -431,17 +510,31 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
     final unit = _unitController.text.isNotEmpty ? _unitController.text : null;
     final enumOptionsData = _enumOptions.map((opt) => EnumOptionData(value: opt.controller.text, color: opt.color.value,)).toList();
 
+    // Notification data
+    final int? reminderHour = _remindMe ? _selectedTime?.hour : null;
+    final int? reminderMinute = _remindMe ? _selectedTime?.minute : null;
+    final String? reminderDays = _remindMe && _selectedDays.isNotEmpty 
+      ? (_selectedDays.toList()..sort()).join(',') 
+      : null;
+
     try {
       if (_isEditing) {
-        final updatedHabit = widget.habit!.copyWith(
-          name: name,
-          type: _selectedType.value,
+        final companion = HabitsCompanion(
+          id: Value(widget.habit!.id),
+          name: Value(name),
+          type: Value(_selectedType.value),
           color: Value(_habitColor.value),
           notificationText: Value(notificationText),
           targetValue: Value(targetValue),
           unit: Value(unit),
+          reminderHour: Value(reminderHour),
+          reminderMinute: Value(reminderMinute),
+          reminderDays: Value(reminderDays),
         );
-        await repo.updateHabit(habit: updatedHabit, enumOptions: enumOptionsData);
+        await repo.updateHabit(
+          companion: companion,
+          enumOptions: enumOptionsData,
+        );
       } else {
         await repo.createHabit(
           name: name,
@@ -451,6 +544,9 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
           targetValue: targetValue,
           unit: unit,
           enumOptions: enumOptionsData,
+          reminderHour: reminderHour,
+          reminderMinute: reminderMinute,
+          reminderDays: reminderDays,
         );
       }
       if (mounted) context.pop();

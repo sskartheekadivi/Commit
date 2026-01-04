@@ -1,8 +1,16 @@
+import 'package:commit/services/notification_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:commit/database/database.dart';
 import 'package:commit/repositories/habit_repository.dart';
 
 part 'providers.g.dart';
+
+@Riverpod(keepAlive: true)
+NotificationService notificationService(NotificationServiceRef ref) {
+  final service = NotificationService(ref.watch(habitRepositoryProvider));
+  service.init();
+  return service;
+}
 
 @Riverpod(keepAlive: true)
 AppDatabase appDatabase(AppDatabaseRef ref) {
@@ -12,7 +20,7 @@ AppDatabase appDatabase(AppDatabaseRef ref) {
 
 @Riverpod(keepAlive: true)
 HabitRepository habitRepository(HabitRepositoryRef ref) {
-  return HabitRepository(ref.watch(appDatabaseProvider));
+  return HabitRepository(ref.watch(appDatabaseProvider), ref);
 }
 
 @riverpod

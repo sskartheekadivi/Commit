@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:commit/database/database.dart';
 import 'package:commit/models/habit_type.dart';
+import 'package:commit/providers/providers.dart'; // Import providers.dart
 
 // Simple data class to decouple UI from the database companions
 class EnumOptionData {
@@ -11,8 +13,9 @@ class EnumOptionData {
 
 class HabitRepository {
   final AppDatabase _db;
+  final Ref _ref; // Add Ref
 
-  HabitRepository(this._db);
+  HabitRepository(this._db, this._ref); // Update constructor to accept Ref
 
   // GETTERS
 
@@ -67,6 +70,14 @@ class HabitRepository {
     return (_db.select(_db.enumOptions)..where((o) => o.habitId.equals(habitId))).get();
   }
 
+  Future<bool> isHabitLoggedOnDate(int habitId, DateTime date) async {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final count = await (_db.select(_db.logs)
+          ..where((l) => l.habitId.equals(habitId) & l.date.equals(startOfDay)))
+        .getSingleOrNull();
+    return count != null;
+  }
+
   // MODIFIERS
 
   Future<void> createLog(int habitId, DateTime date, String value) {
@@ -97,6 +108,9 @@ class HabitRepository {
     double? targetValue,
     String? unit,
     List<EnumOptionData> enumOptions = const [],
+    int? reminderHour,
+    int? reminderMinute,
+    String? reminderDays,
   }) async {
     final existing = await (_db.select(_db.habits)..where((h) => h.name.lower().equals(name.toLowerCase()))).getSingleOrNull();
     if (existing != null) {
@@ -117,6 +131,9 @@ class HabitRepository {
               unit: Value(unit),
               createdAt: DateTime.now(),
               orderIndex: Value(maxOrder + 1),
+              reminderHour: Value(reminderHour),
+              reminderMinute: Value(reminderMinute),
+              reminderDays: Value(reminderDays),
             ),
           );
 
@@ -129,26 +146,37 @@ class HabitRepository {
           ));
         }
       }
+
+      final newHabit = await (_db.select(_db.habits)..where((h) => h.id.equals(habitId))).getSingle();
+      await _ref.read(notificationServiceProvider).scheduleNotificationForHabit(newHabit);
       return habitId;
     });
   }
 
   Future<bool> updateHabit({
-    required Habit habit,
+    required HabitsCompanion companion,
     List<EnumOptionData> enumOptions = const [],
   }) {
     return _db.transaction(() async {
-      if (HabitType.fromString(habit.type) == HabitType.enumType) {
-        await (_db.delete(_db.enumOptions)..where((o) => o.habitId.equals(habit.id))).go();
+      if (companion.type.value == HabitType.enumType.value) {
+        await (_db.delete(_db.enumOptions)..where((o) => o.habitId.equals(companion.id.value))).go();
         for (final option in enumOptions) {
            await _db.into(_db.enumOptions).insert(EnumOptionsCompanion.insert(
-            habitId: habit.id,
+            habitId: companion.id.value,
             value: option.value,
             color: option.color,
           ));
         }
       }
-      return _db.update(_db.habits).replace(habit);
+
+      final updatedRows = await (_db.update(_db.habits)..where((h) => h.id.equals(companion.id.value))).write(companion);
+
+      if (updatedRows > 0) {
+        final updatedHabit = await (_db.select(_db.habits)..where((h) => h.id.equals(companion.id.value))).getSingle();
+        await _ref.read(notificationServiceProvider).scheduleNotificationForHabit(updatedHabit);
+        return true;
+      }
+      return false;
     });
   }
   
@@ -163,7 +191,10 @@ class HabitRepository {
   }
 
   Future<void> archiveHabit(int habitId) {
-    return (_db.update(_db.habits)..where((h) => h.id.equals(habitId))).write(const HabitsCompanion(archived: Value(true)));
+    return _db.transaction(() async {
+      await _ref.read(notificationServiceProvider).cancelNotificationsForHabit(habitId);
+      await (_db.update(_db.habits)..where((h) => h.id.equals(habitId))).write(const HabitsCompanion(archived: Value(true)));
+    });
   }
 
   Future<void> unarchiveHabit(int habitId) {
@@ -172,6 +203,7 @@ class HabitRepository {
 
   Future<void> deleteHabit(int habitId) {
     return _db.transaction(() async {
+      await _ref.read(notificationServiceProvider).cancelNotificationsForHabit(habitId);
       await (_db.delete(_db.logs)..where((l) => l.habitId.equals(habitId))).go();
       await (_db.delete(_db.enumOptions)..where((o) => o.habitId.equals(habitId))).go();
       await (_db.delete(_db.habits)..where((h) => h.id.equals(habitId))).go();
