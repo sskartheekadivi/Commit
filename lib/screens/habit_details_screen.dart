@@ -180,16 +180,24 @@ class _HeaderStats extends ConsumerWidget {
 }
 
 class ActivityHeatmap extends ConsumerWidget {
-  const ActivityHeatmap({super.key, required this.habit, required this.isEditMode, required this.onDateClick});
+  const ActivityHeatmap({
+    super.key, 
+    required this.habit, 
+    required this.isEditMode, 
+    required this.onDateClick
+  });
+
   final Habit habit;
   final bool isEditMode;
   final void Function(DateTime date, Log? log) onDateClick;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 1. REMOVED: The block that hid the heatmap for Time type.
+    
     final logsAsync = ref.watch(logsForHabitProvider(habit.id));
-    final habitType = HabitType.fromString(habit.type);
     final enumOptionsAsync = ref.watch(enumOptionsProvider(habit.id));
+    final habitType = HabitType.fromString(habit.type);
 
     if (habitType == HabitType.enumType) {
       return enumOptionsAsync.when(
@@ -205,29 +213,27 @@ class ActivityHeatmap extends ConsumerWidget {
     return logsAsync.when(
       data: (logs) {
         final logMap = {for (var log in logs) stripTime(log.date): log};
-        final datasets = _transformLogsToHeatmapDatasets(logMap, habitType, enumOptions);
-        final colorsets = _buildHeatmapColorsets(habitType, enumOptions);
+        
+        final datasets = _transformLogsToHeatmapDatasets(logs, habitType, enumOptions);
+        final colorsets = _buildHeatmapColorsets(context, habitType, enumOptions);
 
-        return HeatMapCalendar(
+        return HeatMap(
           datasets: datasets,
-          colorMode: ColorMode.color,
+          colorMode: ColorMode.opacity,
           colorsets: colorsets,
+          scrollable: true,
+          startDate: DateTime.now().subtract(const Duration(days: 90)),
+          endDate: DateTime.now(),
           showColorTip: false,
+          size: 20,
+          fontSize: 10,
+          defaultColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          textColor: Theme.of(context).colorScheme.onSurface,
           onClick: isEditMode
               ? (date) {
                   if (date.isAfter(DateTime.now())) {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Cannot Log for Future Date'),
-                        content: const Text('You cannot log an activity for a date that has not yet occurred.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('OK'),
-                          ),
-                        ],
-                      ),
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Cannot edit future dates.')),
                     );
                   } else {
                     onDateClick(date, logMap[date]);
@@ -241,37 +247,108 @@ class ActivityHeatmap extends ConsumerWidget {
     );
   }
 
-  Map<int, Color> _buildHeatmapColorsets(HabitType type, List<EnumOption> enumOptions) {
+  // --- COLORS ---
+  Map<int, Color> _buildHeatmapColorsets(BuildContext context, HabitType type, List<EnumOption> enumOptions) {
+    // Enum: Specific colors
     if (type == HabitType.enumType) {
       return {for (var i = 0; i < enumOptions.length; i++) i + 1: Color(enumOptions[i].color)};
     }
-    return {1: Color(habit.color ?? Colors.blue.value)};
+
+    // Measurable OR Time: Generate 10 shades (Gradient)
+    if (type == HabitType.measurable || type == HabitType.time) {
+      final baseColor = habit.color != null 
+          ? Color(habit.color!) 
+          : Theme.of(context).colorScheme.primary;
+      
+      // Generate 10 steps of opacity
+      return {
+        1: baseColor.withOpacity(0.1),
+        2: baseColor.withOpacity(0.2),
+        3: baseColor.withOpacity(0.3),
+        4: baseColor.withOpacity(0.4),
+        5: baseColor.withOpacity(0.5),
+        6: baseColor.withOpacity(0.6),
+        7: baseColor.withOpacity(0.7),
+        8: baseColor.withOpacity(0.8),
+        9: baseColor.withOpacity(0.9),
+        10: baseColor.withOpacity(1.0),
+      };
+    }
+
+    // Boolean / Description: Single solid color
+    return {
+      1: habit.color != null 
+          ? Color(habit.color!) 
+          : Theme.of(context).colorScheme.primary
+    };
   }
 
-  Map<DateTime, int> _transformLogsToHeatmapDatasets(Map<DateTime, Log> logMap, HabitType type, List<EnumOption> enumOptions) {
+  // --- DATA ---
+  Map<DateTime, int> _transformLogsToHeatmapDatasets(List<Log> logs, HabitType type, List<EnumOption> enumOptions) {
     final Map<DateTime, int> data = {};
-    for (final entry in logMap.entries) {
-      final date = entry.key;
-      final log = entry.value;
+    
+    // For Measurable scaling
+    double maxValue = 1.0;
+    if (type == HabitType.measurable) {
+      if (habit.targetValue != null && habit.targetValue! > 0) {
+        maxValue = habit.targetValue!;
+      } else {
+        for (var log in logs) {
+          final val = double.tryParse(log.value) ?? 0.0;
+          if (val > maxValue) maxValue = val;
+        }
+      }
+    }
+
+    for (final log in logs) {
+      final date = stripTime(log.date);
       int intensity = 0;
+
       switch (type) {
         case HabitType.boolean:
         case HabitType.description:
           intensity = 1;
           break;
+          
         case HabitType.measurable:
           final value = double.tryParse(log.value) ?? 0.0;
-          if (habit.targetValue != null && habit.targetValue! > 0) {
-            intensity = ((value / habit.targetValue!) * 10).clamp(1, 10).toInt();
+          if (value <= 0) {
+            intensity = 0;
           } else {
-            intensity = (value > 0) ? 1 : 0;
+            double percentage = (value / maxValue);
+            intensity = (percentage * 10).ceil().clamp(1, 10);
           }
           break;
+          
         case HabitType.enumType:
           final index = enumOptions.indexWhere((opt) => opt.value == log.value);
           intensity = index != -1 ? index + 1 : 0;
           break;
+          
+        case HabitType.time:
+          // Parse "HH:mm" -> Minutes -> Intensity (1-10)
+          // 00:00 (0 min) -> 1 (Lightest)
+          // 12:00 (720 min) -> 5
+          // 23:59 (1439 min) -> 10 (Darkest)
+          final parts = log.value.split(':');
+          if (parts.length == 2) {
+            final hour = int.tryParse(parts[0]) ?? 0;
+            final minute = int.tryParse(parts[1]) ?? 0;
+            final totalMinutes = (hour * 60) + minute;
+            final maxMinutes = 24 * 60;
+            
+            // Map 0..1440 to 1..10
+            double percentage = totalMinutes / maxMinutes;
+            intensity = (percentage * 10).ceil().clamp(1, 10);
+            
+            // Ensure 00:00 still shows up as at least 1
+            if (intensity == 0) intensity = 1;
+          } else {
+            intensity = 1; // Fallback
+          }
+          break;
       }
+
       if (intensity > 0) {
         data[date] = intensity;
       }
@@ -312,9 +389,17 @@ class LogHistoryList extends ConsumerWidget {
                   ),
                 );
               }
+              String trailingText = log.value;
+              if (habitType == HabitType.time) {
+                final parts = log.value.split(':');
+                if (parts.length == 2) {
+                  final time = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+                  trailingText = time.format(context);
+                }
+              }
               return ListTile(
                 title: Text(DateFormat.yMMMd().format(log.date)),
-                trailing: Text(log.value, style: Theme.of(context).textTheme.bodyLarge),
+                trailing: Text(trailingText, style: Theme.of(context).textTheme.bodyLarge),
               );
             },
             childCount: logs.length,

@@ -1,3 +1,4 @@
+import 'package:commit/screens/manage_categories_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:commit/database/database.dart';
@@ -20,10 +21,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ArchivedHabitsScreen(),
       ),
       GoRoute(
+        path: '/categories',
+        builder: (context, state) => const ManageCategoriesScreen(),
+      ),
+      GoRoute(
         path: '/create',
         builder: (context, state) {
-          final habitType = state.extra as HabitType?;
-          return CreateEditHabitScreen(preselectedType: habitType);
+          final map = state.extra as Map<String, dynamic>?; 
+          return CreateEditHabitScreen(
+              preselectedType: map?['type'] as HabitType?,
+              preselectedCategoryId: map?['categoryId'] as int?, // Pass the ID here
+          );
+          // final habitType = state.extra as HabitType?;
+          // return CreateEditHabitScreen(preselectedType: habitType);
         },
       ),
       GoRoute(

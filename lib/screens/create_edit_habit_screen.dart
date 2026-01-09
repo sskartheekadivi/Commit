@@ -77,9 +77,10 @@ class _EnumOptionState {
 }
 
 class CreateEditHabitScreen extends ConsumerStatefulWidget {
-  const CreateEditHabitScreen({super.key, this.habit, this.preselectedType});
+  const CreateEditHabitScreen({super.key, this.habit, this.preselectedType, this.preselectedCategoryId});
   final Habit? habit;
   final HabitType? preselectedType;
+  final int? preselectedCategoryId;
 
   @override
   ConsumerState<CreateEditHabitScreen> createState() => _CreateEditHabitScreenState();
@@ -95,17 +96,17 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
   late final TextEditingController _notificationTextController;
   final List<_EnumOptionState> _enumOptions = [];
   bool _isLoading = false;
+  int? _selectedCategoryId;
+  List<Color> _paletteColors = [];
 
   // Notification state
   bool _remindMe = false;
-  TimeOfDay? _selectedTime;
+  TimeOfDay? _selectedReminderTime;
   final Set<int> _selectedDays = {}; // 1-7 for Mon-Sun
 
   bool get _isEditing => widget.habit != null;
   bool get _isTypePreselected => widget.preselectedType != null;
-
-  List<Color> _paletteColors = [];
-
+  
   @override
   void initState() {
     super.initState();
@@ -115,11 +116,12 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
     _targetValueController = TextEditingController(text: widget.habit?.targetValue?.toString());
     _unitController = TextEditingController(text: widget.habit?.unit);
     _notificationTextController = TextEditingController(text: widget.habit?.notificationText);
+    _selectedCategoryId = widget.habit?.categoryId ?? widget.preselectedCategoryId;
 
     if (_isEditing) {
       if (widget.habit!.reminderHour != null && widget.habit!.reminderMinute != null) {
         _remindMe = true;
-        _selectedTime = TimeOfDay(hour: widget.habit!.reminderHour!, minute: widget.habit!.reminderMinute!);
+        _selectedReminderTime = TimeOfDay(hour: widget.habit!.reminderHour!, minute: widget.habit!.reminderMinute!);
       }
       if (widget.habit!.reminderDays != null && widget.habit!.reminderDays!.isNotEmpty) {
         _selectedDays.addAll(widget.habit!.reminderDays!.split(',').map((e) => int.parse(e)));
@@ -272,6 +274,8 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final categoriesAsync = ref.watch(allCategoriesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Habit' : 'Create Habit'),
@@ -299,6 +303,30 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
                         },
                       ),
                     ],
+                    const SizedBox(height: 20),
+                    categoriesAsync.when(
+                      data: (categories) => DropdownButtonFormField<int>(
+                        value: _selectedCategoryId,
+                        decoration: const InputDecoration(labelText: 'Category'),
+                        items: [
+                          const DropdownMenuItem<int>(
+                            value: null,
+                            child: Text('Uncategorized'),
+                          ),
+                          ...categories.map((category) => DropdownMenuItem(
+                                value: category.id,
+                                child: Text(category.name),
+                              )),
+                        ],
+                        onChanged: (int? newValue) {
+                          setState(() {
+                            _selectedCategoryId = newValue;
+                          });
+                        },
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (e, s) => const SizedBox.shrink(),
+                    ),
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _notificationTextController,
@@ -334,7 +362,7 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
             setState(() {
               _remindMe = value;
               if (!value) {
-                _selectedTime = null;
+                  _selectedReminderTime = null;
                 _selectedDays.clear();
               }
             });
@@ -343,15 +371,15 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
         if (_remindMe) ...[
           ListTile(
             title: const Text('Reminder Time'),
-            subtitle: Text(_selectedTime?.format(context) ?? 'Select Time'),
+            subtitle: Text(  _selectedReminderTime?.format(context) ?? 'Select Time'),
             trailing: const Icon(Icons.access_time),
             onTap: () async {
               final TimeOfDay? picked = await showTimePicker(
                 context: context,
-                initialTime: _selectedTime ?? TimeOfDay.now(),
+                initialTime:   _selectedReminderTime ?? TimeOfDay.now(),
               );
               if (picked != null) {
-                setState(() => _selectedTime = picked);
+                setState(() =>   _selectedReminderTime = picked);
               }
             },
           ),
@@ -496,66 +524,137 @@ class _CreateEditHabitScreenState extends ConsumerState<CreateEditHabitScreen> {
     );
   }
 
-  Future<void> _saveHabit() async {
-    if (!_formKey.currentState!.validate()) return;
-     if (_selectedType == HabitType.enumType && _enumOptions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add at least one enum option.')));
-      return;
-    }
+    Future<void> _saveHabit() async {
 
-    final repo = ref.read(habitRepositoryProvider);
-    final name = _nameController.text;
-    final notificationText = _notificationTextController.text;
-    final targetValue = _targetValueController.text.isNotEmpty ? double.tryParse(_targetValueController.text) : null;
-    final unit = _unitController.text.isNotEmpty ? _unitController.text : null;
-    final enumOptionsData = _enumOptions.map((opt) => EnumOptionData(value: opt.controller.text, color: opt.color.value,)).toList();
+      if (!_formKey.currentState!.validate()) return;
 
-    // Notification data
-    final int? reminderHour = _remindMe ? _selectedTime?.hour : null;
-    final int? reminderMinute = _remindMe ? _selectedTime?.minute : null;
-    final String? reminderDays = _remindMe && _selectedDays.isNotEmpty 
-      ? (_selectedDays.toList()..sort()).join(',') 
-      : null;
+       if (_selectedType == HabitType.enumType && _enumOptions.isEmpty) {
 
-    try {
-      if (_isEditing) {
-        final companion = HabitsCompanion(
-          id: Value(widget.habit!.id),
-          name: Value(name),
-          type: Value(_selectedType.value),
-          color: Value(_habitColor.value),
-          notificationText: Value(notificationText),
-          targetValue: Value(targetValue),
-          unit: Value(unit),
-          reminderHour: Value(reminderHour),
-          reminderMinute: Value(reminderMinute),
-          reminderDays: Value(reminderDays),
-        );
-        await repo.updateHabit(
-          companion: companion,
-          enumOptions: enumOptionsData,
-        );
-      } else {
-        await repo.createHabit(
-          name: name,
-          type: _selectedType,
-          color: _habitColor.value,
-          notificationText: notificationText,
-          targetValue: targetValue,
-          unit: unit,
-          enumOptions: enumOptionsData,
-          reminderHour: reminderHour,
-          reminderMinute: reminderMinute,
-          reminderDays: reminderDays,
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add at least one enum option.')));
+
+        return;
+
       }
-      if (mounted) context.pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save habit: ${e.toString()}')));
+
+  
+
+      final repo = ref.read(habitRepositoryProvider);
+
+      final name = _nameController.text;
+
+      final notificationText = _notificationTextController.text;
+
+      final targetValue = _targetValueController.text.isNotEmpty ? double.tryParse(_targetValueController.text) : null;
+
+      final unit = _unitController.text.isNotEmpty ? _unitController.text : null;
+
+      final enumOptionsData = _enumOptions.map((opt) => EnumOptionData(value: opt.controller.text, color: opt.color.value,)).toList();
+
+  
+
+      // Notification data
+
+      final int? reminderHour = _remindMe ? _selectedReminderTime?.hour : null;
+
+      final int? reminderMinute = _remindMe ? _selectedReminderTime?.minute : null;
+
+      final String? reminderDays = _remindMe && _selectedDays.isNotEmpty
+
+        ? (_selectedDays.toList()..sort()).join(',')
+
+        : null;
+
+  
+
+      try {
+
+        if (_isEditing) {
+
+          final companion = HabitsCompanion(
+
+            id: Value(widget.habit!.id),
+
+            name: Value(name),
+
+            type: Value(_selectedType.value),
+
+            color: Value(_habitColor.value),
+
+            notificationText: Value(notificationText),
+
+            targetValue: Value(targetValue),
+
+            unit: Value(unit),
+
+            reminderHour: Value(reminderHour),
+
+            reminderMinute: Value(reminderMinute),
+
+            reminderDays: Value(reminderDays),
+
+            categoryId: Value(_selectedCategoryId),
+
+          );
+
+          await repo.updateHabit(
+
+            companion: companion,
+
+            enumOptions: enumOptionsData,
+
+          );
+
+          final updatedHabit = await repo.getHabit(widget.habit!.id);
+
+          await ref.read(notificationServiceProvider).scheduleNotificationForHabit(updatedHabit, repo);
+
+        } else {
+
+          final newHabitId = await repo.createHabit(
+
+            name: name,
+
+            type: _selectedType,
+
+            color: _habitColor.value,
+
+            notificationText: notificationText,
+
+            targetValue: targetValue,
+
+            unit: unit,
+
+            enumOptions: enumOptionsData,
+
+            reminderHour: reminderHour,
+
+            reminderMinute: reminderMinute,
+
+            reminderDays: reminderDays,
+
+            categoryId: _selectedCategoryId,
+
+          );
+
+          final newHabit = await repo.getHabit(newHabitId);
+
+          await ref.read(notificationServiceProvider).scheduleNotificationForHabit(newHabit, repo);
+
+        }
+
+        if (mounted) context.pop();
+
+      } catch (e) {
+
+        if (mounted) {
+
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save habit: ${e.toString()}')));
+
+        }
+
       }
+
     }
-  }
 
   Future<void> _archiveHabit() async {
     final confirmed = await showDialog<bool>(

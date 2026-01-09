@@ -24,6 +24,7 @@ class _LogHabitDialogState extends ConsumerState<LogHabitDialog> {
   late final TextEditingController _valueController;
   final _formKey = GlobalKey<FormState>();
   String? _selectedEnumValue;
+  TimeOfDay? _selectedTime;
 
   bool get _isEditing => widget.log != null;
 
@@ -31,8 +32,16 @@ class _LogHabitDialogState extends ConsumerState<LogHabitDialog> {
   void initState() {
     super.initState();
     _valueController = TextEditingController(text: _isEditing ? widget.log!.value : null);
-    if (_isEditing && HabitType.fromString(widget.habit.type) == HabitType.enumType) {
-      _selectedEnumValue = widget.log!.value;
+    final habitType = HabitType.fromString(widget.habit.type);
+    if (_isEditing) {
+      if (habitType == HabitType.enumType) {
+        _selectedEnumValue = widget.log!.value;
+      } else if (habitType == HabitType.time) {
+        final parts = widget.log!.value.split(':');
+        if (parts.length == 2) {
+          _selectedTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+        }
+      }
     }
   }
 
@@ -108,6 +117,21 @@ class _LogHabitDialogState extends ConsumerState<LogHabitDialog> {
           maxLines: 3,
           validator: (value) => (value == null || value.isEmpty) ? 'Please enter a value' : null,
         );
+      case HabitType.time:
+        return ListTile(
+          title: const Text('Time'),
+          subtitle: Text(_selectedTime?.format(context) ?? 'Select Time'),
+          trailing: const Icon(Icons.access_time),
+          onTap: () async {
+            final TimeOfDay? picked = await showTimePicker(
+              context: context,
+              initialTime: _selectedTime ?? TimeOfDay.now(),
+            );
+            if (picked != null) {
+              setState(() => _selectedTime = picked);
+            }
+          },
+        );
       case HabitType.boolean:
         return const SizedBox.shrink(); // Should not be reachable
     }
@@ -130,10 +154,24 @@ class _LogHabitDialogState extends ConsumerState<LogHabitDialog> {
 
   Future<void> _logHabit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (HabitType.fromString(widget.habit.type) == HabitType.time && _selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a time.')));
+      return;
+    }
 
     final repo = ref.read(habitRepositoryProvider);
     final habitType = HabitType.fromString(widget.habit.type);
-    final value = habitType == HabitType.enumType ? _selectedEnumValue! : _valueController.text;
+    final String value;
+    switch (habitType) {
+      case HabitType.enumType:
+        value = _selectedEnumValue!;
+        break;
+      case HabitType.time:
+        value = '${_selectedTime!.hour}:${_selectedTime!.minute}';
+        break;
+      default:
+        value = _valueController.text;
+    }
     final logDate = widget.date ?? DateTime.now();
 
     try {

@@ -13,9 +13,6 @@ import 'package:commit/repositories/habit_repository.dart';
 class NotificationService {
   final fln.FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       fln.FlutterLocalNotificationsPlugin();
-  final HabitRepository _habitRepository;
-
-  NotificationService(this._habitRepository);
 
   Future<void> init() async {
     tz_data.initializeTimeZones();
@@ -66,7 +63,7 @@ class NotificationService {
     }
   }
 
-  Future<void> scheduleNotificationForHabit(Habit habit) async {
+  Future<void> scheduleNotificationForHabit(Habit habit, HabitRepository habitRepository) async {
     await cancelNotificationsForHabit(habit.id);
 
     if (habit.reminderHour == null ||
@@ -129,7 +126,7 @@ class NotificationService {
       }
 
       // Check if the habit is already logged for the scheduled date
-      final isLogged = await _habitRepository.isHabitLoggedOnDate(habit.id, scheduledDate);
+      final isLogged = await habitRepository.isHabitLoggedOnDate(habit.id, scheduledDate);
       if (isLogged) {
         // If already logged, skip this notification
         continue;

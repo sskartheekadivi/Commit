@@ -7,7 +7,7 @@ part 'providers.g.dart';
 
 @Riverpod(keepAlive: true)
 NotificationService notificationService(NotificationServiceRef ref) {
-  final service = NotificationService(ref.watch(habitRepositoryProvider));
+  final service = NotificationService();
   service.init();
   return service;
 }
@@ -20,7 +20,7 @@ AppDatabase appDatabase(AppDatabaseRef ref) {
 
 @Riverpod(keepAlive: true)
 HabitRepository habitRepository(HabitRepositoryRef ref) {
-  return HabitRepository(ref.watch(appDatabaseProvider), ref);
+  return HabitRepository(ref.watch(appDatabaseProvider));
 }
 
 @riverpod
@@ -54,6 +54,47 @@ Stream<List<EnumOption>> enumOptions(EnumOptionsRef ref, int habitId) {
 }
 
 @riverpod
+
 Stream<List<Log>> logsForHabitLast7Days(LogsForHabitLast7DaysRef ref, int habitId) {
+
   return ref.watch(habitRepositoryProvider).watchLogsForHabitLast7Days(habitId, DateTime.now());
+
 }
+
+
+
+@riverpod
+
+Stream<List<Category>> allCategories(AllCategoriesRef ref) {
+
+  return ref.watch(habitRepositoryProvider).watchAllCategories();
+
+}
+
+
+
+@riverpod
+
+Stream<List<Habit>> habitsForCategory(HabitsForCategoryRef ref, int categoryId) {
+
+  return ref.watch(habitRepositoryProvider).watchHabitsForCategory(categoryId);
+
+}
+
+
+
+@riverpod
+
+Stream<List<Habit>> uncategorizedHabits(UncategorizedHabitsRef ref) {
+
+  return ref.watch(habitRepositoryProvider).watchUncategorizedHabits();
+
+}
+
+final streamAllHabitsProvider = StreamProvider<List<Habit>>((ref) {
+  return ref.watch(habitRepositoryProvider).watchAllHabits();
+});
+
+final archivedCategoriesProvider = StreamProvider<List<Category>>((ref) {
+  return ref.watch(habitRepositoryProvider).watchArchivedCategories();
+});
